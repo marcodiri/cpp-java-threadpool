@@ -19,6 +19,7 @@ private:
     bool terminated_pool;
     bool stopped;
 
+    // adapter to pass a future to execute()
     template<class T>
     class RunnableFuture : public Runnable {
     private:
@@ -39,7 +40,7 @@ public:
     /**
      * Creates a thread pool that reuses a fixed number of threads
      * operating off a shared unbounded queue.
-     * At any point, at most <tt>nThreads</tt> threads will be active
+     * At any point, at most <tt>n_threads</tt> threads will be active
      * processing tasks.
      * If additional tasks are submitted when all threads are
      * active, they will wait in the queue until a thread is
@@ -49,6 +50,10 @@ public:
      * @param n_threads the number of threads in the pool
      */
     explicit FixedThreadPool(unsigned int n_threads);
+
+    /**
+     * Calls <tt>shutdown</tt> if pool is not already shut down.
+     */
     ~FixedThreadPool();
 
     /**
@@ -75,9 +80,9 @@ public:
     std::future<T> submit(Runnable *task, T result);
 
     /**
-     * Returns <tt>true</tt> if this executor has been shut down.
+     * Returns <tt>true</tt> if this pool has been shut down.
      *
-     * @return <tt>true</tt> if this executor has been shut down
+     * @return <tt>true</tt> if this pool has been shut down
      */
     bool isShutdown() const;
 
@@ -88,8 +93,8 @@ public:
     size_t getPoolSize() const;
 
     /**
-     * Returns the approximate total number of tasks that have ever been scheduled for execution.
-     * @return the approximate total number of tasks that have ever been scheduled for execution
+     * Returns the total number of tasks that have ever been scheduled for execution.
+     * @return the total number of tasks that have ever been scheduled for execution
      */
     size_t getTaskCount() const;
 };
