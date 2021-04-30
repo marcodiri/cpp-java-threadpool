@@ -1,15 +1,25 @@
 #include "gtest/gtest.h"
 #include <FixedThreadPool.h>
+#include <chrono>
 
 class RunnableTask : public Runnable {
+private:
+    std::mutex mtx;
+
 public:
     std::atomic_int timesRun;
+    std::set<std::thread::id> tids;
 
     explicit RunnableTask() : timesRun(0) {}
     ~RunnableTask() override = default;
 
     void run() override {
+        // simulate work...
         timesRun++;
+        mtx.lock();
+        tids.insert(std::this_thread::get_id());
+        mtx.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds (10));
     }
 };
 
@@ -51,6 +61,11 @@ TEST(FixedThreadPoolTestSuite, TestPoolMultipleExecute) {
     ASSERT_EQ(pool.getTaskCount(), 5);
     pool.shutdown();
     ASSERT_EQ(task.timesRun, 5);
+
+    // task.tids.size() could vary from 1 to 3 depending on how
+    // the scheduler decides to manage the threads
+    std::cout << pool.getTaskCount() << " tasks executed by "
+    << task.tids.size() << " different threads" << std::endl;
 }
 
 TEST(FixedThreadPoolTestSuite, TestPoolMultipleTasks) {
