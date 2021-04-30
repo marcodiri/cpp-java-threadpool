@@ -1,6 +1,6 @@
 #include <iostream>
-#include "ThreadPool/Runnable.h"
-#include "ThreadPool/FixedThreadPool.h"
+#include "Runnable.h"
+#include "FixedThreadPool.h"
 
 class Test : public Runnable {
 public:
