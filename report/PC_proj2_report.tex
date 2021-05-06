@@ -1,0 +1,175 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{cvpr}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=black,
+	filecolor=magenta,      
+	urlcolor=cyan,
+	pdfpagemode=FullScreen,
+}
+\usepackage[noabbrev,capitalize]{cleveref}
+\usepackage{listings}
+\lstset{language=C++, basicstyle=\ttfamily}
+\usepackage[T1]{fontenc}
+
+\usepackage{url}
+
+% Include other packages here, before hyperref.
+
+% If you comment hyperref and then uncomment it, you should delete
+% egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
+% run, let it finish, and you should be clear).
+%\usepackage[pagebackref=true,breaklinks=true,letterpaper=true,colorlinks,bookmarks=false]{hyperref}
+
+\cvprfinalcopy % *** Uncomment this line for the final submission
+
+\def\cvprPaperID{****} % *** Enter the CVPR Paper ID here
+\def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
+
+% Pages are numbered in submission mode, and unnumbered in camera-ready
+\ifcvprfinal\pagestyle{empty}\fi
+\begin{document}
+	
+	%%%%%%%%% TITLE
+	\title{Project 1: Java Thread Pool in C++11}
+	
+	\author{Marco Di Rienzo\\
+		{\tt\small marco.dirienzo@stud.unifi.it}
+		% For a paper whose authors are all at the same institution,
+		% omit the following lines up until the closing ``}''.
+		% Additional authors and addresses can be added with ``\and'',
+		% just like the second author.
+		% To save space, use either the email address or home page, not both
+	}
+	
+	\maketitle
+	\thispagestyle{empty}
+	
+	%%%%%%%%% ABSTRACT
+	\begin{abstract}
+		The goal of this paper is to implement a simple thread pool library in C++11.
+	\end{abstract}
+	
+	%%%%%%%%% BODY TEXT
+	\section{Introduction}
+	The developed library is entirely written in standard C++11 and allows the creation of a simple thread pool. In particular the pool should be of fixed size, that is the number of threads in the pool will not vary for the whole pool lifetime. Threads of the pool may consume tasks as they become available.\\
+	The API of the library is inspired by the Java class \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ThreadPoolExecutor.html}{\lstinline|ThreadPoolExecutor|}.
+	
+	\section{Documentation} \label{docs}
+	\subsection{Runnable}\label{sec:runnable}
+	\noindent
+	The \lstinline|Runnable| interface should be implemented by any class whose instances are intended to be executed by a \hyperref[sec:ftp]{\lstinline|FixedThreadPool|}. The class must define a method of no arguments called \lstinline|run|.
+	\subsubsection{Methods}
+	\texttt{void \textbf{run}()}\\
+	Submitting an object implementing interface \lstinline|Runnable| to a \hyperref[ftp]{\lstinline|FixedThreadPool|} will cause the object's \lstinline|run| method to be called in a separately executing thread.
+	
+	\subsection{FixedThreadPool}\label{sec:ftp}
+	\noindent
+	This class allows the creation of a pool that reuses a fixed number of threads operating off a shared unbounded queue.\\
+	At any point, at most a fixed number of threads will be active processing tasks.
+	If additional tasks are submitted when all threads are active, they will wait in the queue until a thread is available.
+	The threads in the pool will exist until it is explicitly shutdown.
+	\subsubsection{Constructor \& Destructor}
+	\texttt{\textbf{FixedThreadPool}(int n\_threads)}\\
+	Creates a \lstinline|FixedThreadPool| with \lstinline|n_threads| initial threads, the number of threads will remain constant for the whole pool lifetime.\\\\
+	\texttt{\textbf{\textasciitilde FixedThreadPool}}\\
+	Calls \texttt{shutdown} if pool is not already shut down.
+	\subsubsection{Methods}
+	\texttt{void \textbf{execute}(Runnable *command)}\\
+	Executes the given command at some time in the future. The command will be executed by a thread of the pool.\\\\
+	\texttt{size\_t \textbf{getPoolSize}() const}\\
+	Returns the current number of threads in the pool.\\\\
+	\texttt{size\_t \textbf{getTaskCount}() const}\\
+	Returns the approximate total number of tasks that have ever been scheduled for execution.\\\\
+	\texttt{bool \textbf{isShutdown}() const}\\
+	Returns \texttt{true} if this pool has been shut down.\\\\
+	\texttt{void \textbf{shutdown}()}\\
+	Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.\\\\
+	\texttt{template<class T>\\
+		std::future<T> \textbf{submit}(Runnable *task, T result);}\\
+	Submits a \lstinline|Runnable| task for execution and returns a \lstinline|Future| representing that task. The \lstinline|Future|'s \lstinline|get| method will return the given result upon successful completion.\\
+	The task will be executed by a thread of the pool.
+	
+	\section{Implementation}
+	A explanation on how non-trivial methods are implemented follows.
+	\subsection{FixedThreadPool}
+	The \lstinline|FixedThreadPool| class implements some of the method of the Java class \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ThreadPoolExecutor.html}{\lstinline|ThreadPoolExecutor|}.\\
+	To do this, it maintains a \lstinline|std::vector| of threads of fixed size and a \lstinline|std::queue| of tasks shared among those threads. A mutex lock is also necessary to synchronize reads and writes to the queue and to the pool state.\\
+	The uses of such resources by each of the implemented methods are explained next.
+	\subsubsection{Instantiation}
+	At pool instantiation, the specified number of threads will be created, each one of them running the same loop described by the following pseudocode:
+	\begin{algorithm}
+		\SetAlgoLined
+		\While{$true$}{
+			acquire pool shared queue $lock$\;
+			\While{pool not terminated $and$ queue is empty}{
+				// block thread until wakeup\\
+				wait($lock$)\;
+			}
+			\If{pool terminated $and$ queue is empty}{return\;}
+			get first $task$ in queue\;
+			release $lock$\;
+			execute $task$\;
+		}
+		\caption{Thread loop}
+		\label{pseudo:threads}
+	\end{algorithm}\\
+	Every thread will wait for tasks to enter the shared queue, at which point one of them synchronously removes a task that can then be executed in parallel with others.
+	\subsubsection{Shutdown}
+	The \lstinline|shutdown| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#shutdown()}{\lstinline{shutdown}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
+	This method initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
+	\begin{algorithm}
+		\SetAlgoLined
+		acquire pool shared queue $lock$\;
+		set pool to $terminated$\;
+		// this unlocks threads waiting on empty queue\\
+		release $lock$\;
+		// wake all threads up\\
+		notify\_all()\;
+		\lstinline|join| all threads of the pool\;
+		\caption{Execute}
+		\label{pseudo:execute}
+	\end{algorithm}
+	\subsubsection{Execute}
+	The \lstinline|execute| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html#execute(java.lang.Runnable)}{\lstinline{execute}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html}{\lstinline{Executor}} interface.\\
+	It allows a task implementing the \hyperref[sec:runnable]{\lstinline|Runnable|} interface to be scheduled for execution at some time in the future.
+	\begin{algorithm}
+		\SetAlgoLined
+		\KwData{$task$}
+		acquire pool shared queue $lock$\;
+		\If{pool terminated}{
+			// do not allow enqueing on terminated pool\\
+			throw exception\;
+		}
+		enqueue the $task$\;
+		release $lock$\;
+		// wake a thread up\\
+		notify()\;
+		\caption{Execute}
+		\label{pseudo:execute}
+	\end{algorithm}
+	\subsubsection{Submit}
+	The \lstinline|submit| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#submit(java.lang.Runnable,\%20T)}{\lstinline{submit}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
+	As such, it is similar to the \lstinline|execute| method but it returns a \lstinline|Future| to the caller which is able to retrieve the result at a later time.\\
+	To do this, a \href{https://en.cppreference.com/w/cpp/thread/future}{\lstinline|std::future|} representing the task is created and returned.
+	An adapter class \lstinline|RunnableFuture| has been implemented to be able to pass the future operation to the \lstinline|execute| method.
+	\begin{algorithm}
+		\SetAlgoLined
+		\KwData{$task$, $result$}
+		create an asynchronous operation that invokes the $task$ and provides a $future$ storing the $result$\;
+		create a \lstinline|RunnableFuture| wrapping the operation\;
+		pass the \lstinline|RunnableFuture| to \lstinline|execute|\;
+		return the $future$\;
+		\caption{Submit}
+		\label{pseudo:execute}
+	\end{algorithm}
+	
+\end{document}
