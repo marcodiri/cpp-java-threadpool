@@ -94,8 +94,8 @@
 	\texttt{void \textbf{shutdown}()}\\
 	Initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.\\\\
 	\texttt{template<class T>\\
-		std::future<T> \textbf{submit}(Runnable *task, T result);}\\
-	Submits a \lstinline|Runnable| task for execution and returns a \lstinline|Future| representing that task. The \lstinline|Future|'s \lstinline|get| method will return the given result upon successful completion.\\
+		std::future<T> \textbf{submit}(Runnable *task, T result)}\\
+	Submits a \lstinline|Runnable| task for execution and returns a \textit{Future} representing that task. The \textit{Future}'s \lstinline|get| method will return the given result upon successful completion.\\
 	The task will be executed by a thread of the pool.
 	
 	\section{Implementation}
@@ -125,7 +125,7 @@
 	Every thread will wait for tasks to enter the shared queue, at which point one of them synchronously removes a task that can then be executed in parallel with others.
 	\subsubsection{Shutdown}
 	The \lstinline|shutdown| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#shutdown()}{\lstinline{shutdown}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
-	This method initiates an orderly shutdown in which previously submitted tasks are executed, but no new tasks will be accepted.
+	This method sets the pool to \textit{terminated} state to allow threads waiting on empty queue to exit.\\\\
 	\begin{algorithm}
 		\SetAlgoLined
 		acquire pool shared queue $lock$\;
@@ -135,12 +135,13 @@
 		// wake all threads up\\
 		notify\_all()\;
 		\lstinline|join| all threads of the pool\;
-		\caption{Execute}
-		\label{pseudo:execute}
+		\caption{Shutdown}
+		\label{pseudo:shutdown}
 	\end{algorithm}
+	\pagebreak
 	\subsubsection{Execute}
 	The \lstinline|execute| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html#execute(java.lang.Runnable)}{\lstinline{execute}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html}{\lstinline{Executor}} interface.\\
-	It allows a task implementing the \hyperref[sec:runnable]{\lstinline|Runnable|} interface to be scheduled for execution at some time in the future.
+	It acquires the \textit{lock} to add the task to the shared \textit{queue}, then notifies a thread that a job has been added.
 	\begin{algorithm}
 		\SetAlgoLined
 		\KwData{$task$}
@@ -158,7 +159,7 @@
 	\end{algorithm}
 	\subsubsection{Submit}
 	The \lstinline|submit| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#submit(java.lang.Runnable,\%20T)}{\lstinline{submit}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
-	As such, it is similar to the \lstinline|execute| method but it returns a \lstinline|Future| to the caller which is able to retrieve the result at a later time.\\
+	As such, it is similar to the \lstinline|execute| method but it returns a \textit{Future} to the caller which is able to retrieve the result at a later time.\\
 	To do this, a \href{https://en.cppreference.com/w/cpp/thread/future}{\lstinline|std::future|} representing the task is created and returned.
 	An adapter class \lstinline|RunnableFuture| has been implemented to be able to pass the future operation to the \lstinline|execute| method.
 	\begin{algorithm}
@@ -169,7 +170,7 @@
 		pass the \lstinline|RunnableFuture| to \lstinline|execute|\;
 		return the $future$\;
 		\caption{Submit}
-		\label{pseudo:execute}
+		\label{pseudo:submit}
 	\end{algorithm}
 	
 \end{document}
