@@ -60,6 +60,13 @@
 	
 	%%%%%%%%% BODY TEXT
 	\section{Introduction}
+	\subsection{Thread pools}
+	Threads are used to execute concurrent tasks. It is possible to self manage those threads, but since creating and destroying threads requires a significant CPU usage, it may become problematic when you need to perform lots of small, simple tasks. The overhead of creating your own threads along with the high number of context switches can take up a significant portion of the CPU cycles and severely affect the final response time.\\
+	This is where thread pools become useful, they provide both a way to reduced per-task invocation overhead and to manage resources, including threads, consumed when executing a collection of tasks.\\
+	When you use a thread pool, you submit concurrent tasks for execution to an instance of a thread pool. This instance controls several reused threads for executing these tasks.\\
+	The main advantages are that threads can be created beforehand, allowing to put a strict upper limit on the total number of threads and hence resources (in particular memory) that are allocated concurrently. Also the threads of the pool are not destroyed until the pool itself is terminated and can be reused for multiple tasks, avoiding the overhead of creating a thread for each one of your tasks. Thread pools can also maintain some basic statistics such as the number of completed tasks.\\
+	The trade-off is that once the pool is saturated, the execution of a new task will be delayed until a previous task is completed.
+	\subsection{Design specifications}
 	The developed library is entirely written in standard C++11 and allows the creation of a simple thread pool. In particular the pool should be of fixed size, that is the number of threads in the pool will not vary for the whole pool lifetime. Threads of the pool may consume tasks as they become available.\\
 	The API of the library is inspired by the Java class \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ThreadPoolExecutor.html}{\lstinline|ThreadPoolExecutor|}.
 	
@@ -105,7 +112,7 @@
 	To do this, it maintains a \lstinline|std::vector| of threads of fixed size and a \lstinline|std::queue| of tasks shared among those threads. A mutex lock is also necessary to synchronize reads and writes to the queue and to the pool state.\\
 	The uses of such resources by each of the implemented methods are explained next.
 	\subsubsection{Instantiation}
-	At pool instantiation, the specified number of threads will be created, each one of them running the same loop described by the following pseudocode:
+	At pool instantiation, the specified number of threads will be created, each one of them running the same loop described by the pseudocode in \cref{pseudo:threads}.
 	\begin{algorithm}
 		\SetAlgoLined
 		\While{$true$}{
@@ -123,9 +130,11 @@
 		\label{pseudo:threads}
 	\end{algorithm}\\
 	Every thread will wait for tasks to enter the shared queue, at which point one of them synchronously removes a task that can then be executed in parallel with others.
+	\pagebreak
 	\subsubsection{Shutdown}
 	The \lstinline|shutdown| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#shutdown()}{\lstinline{shutdown}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
-	This method sets the pool to \textit{terminated} state to allow threads waiting on empty queue to exit.\\\\
+	This method sets the pool to \textit{terminated} state to allow threads waiting on empty queue to exit.\\
+	The pseudocode can be seen in \cref{pseudo:shutdown}.\\\\
 	\begin{algorithm}
 		\SetAlgoLined
 		acquire pool shared queue $lock$\;
@@ -141,7 +150,7 @@
 	\pagebreak
 	\subsubsection{Execute}
 	The \lstinline|execute| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html#execute(java.lang.Runnable)}{\lstinline{execute}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/Executor.html}{\lstinline{Executor}} interface.\\
-	It acquires the \textit{lock} to add the task to the shared \textit{queue}, then notifies a thread that a job has been added.
+	It acquires the \textit{lock} to add the task to the shared \textit{queue}, then notifies a thread that a job has been added, as shown in \cref{pseudo:execute}.
 	\begin{algorithm}
 		\SetAlgoLined
 		\KwData{$task$}
@@ -161,7 +170,8 @@
 	The \lstinline|submit| method corresponds to the  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html#submit(java.lang.Runnable,\%20T)}{\lstinline{submit}} method of the Java  \href{https://docs.oracle.com/javase/7/docs/api/java/util/concurrent/ExecutorService.html}{\lstinline{ExecutorService}} interface.\\
 	As such, it is similar to the \lstinline|execute| method but it returns a \textit{Future} to the caller which is able to retrieve the result at a later time.\\
 	To do this, a \href{https://en.cppreference.com/w/cpp/thread/future}{\lstinline|std::future|} representing the task is created and returned.
-	An adapter class \lstinline|RunnableFuture| has been implemented to be able to pass the future operation to the \lstinline|execute| method.
+	An adapter class \lstinline|RunnableFuture| has been implemented to be able to pass the future operation to the \lstinline|execute| method.\\
+	The pseudocode is described in \cref{pseudo:submit}.
 	\begin{algorithm}
 		\SetAlgoLined
 		\KwData{$task$, $result$}
